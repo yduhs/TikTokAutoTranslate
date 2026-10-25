@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -25,57 +24,32 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
+          cmdline-tools-version: 'latest'
+
+      - name: Install Android packages
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "platform-tools"
+          sdkmanager --install "platforms;android-35"
+          sdkmanager --install "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.6'
 
-      - name: Check project ZIP
-        run: |
-          if [ ! -f "TikTokAutoTranslate-LSP-Starter.zip" ]; then
-            echo "ERROR: Project ZIP not found"
-            ls -la
-            exit 1
-          fi
-
       - name: Extract project
         run: |
           mkdir -p source
           unzip -o TikTokAutoTranslate-LSP-Starter.zip -d source
-          echo "Checking extracted project..."
-          ls -la source
+          test -f source/settings.gradle
 
-      - name: Check Gradle files
-        run: |
-          if [ ! -f "source/settings.gradle" ] && \
-             [ ! -f "source/settings.gradle.kts" ]; then
-            echo "ERROR: settings.gradle not found"
-            find source -name "settings.gradle*" -type f
-            exit 1
-          fi
-
-          if [ ! -f "source/app/build.gradle" ] && \
-             [ ! -f "source/app/build.gradle.kts" ]; then
-            echo "ERROR: app/build.gradle not found"
-            find source -maxdepth 4 -type f
-            exit 1
-          fi
-
-      - name: Build debug APK
+      - name: Build APK
         run: |
           gradle -p source --no-daemon :app:assembleDebug
-
-      - name: Find generated APK
-        run: |
-          find source -type f -name "*.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
