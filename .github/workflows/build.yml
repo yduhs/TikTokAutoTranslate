@@ -12,12 +12,14 @@ permissions:
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,20 +28,54 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35,build-tools;35.0.0'
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.6'
 
+      - name: Check project ZIP
+        run: |
+          if [ ! -f "TikTokAutoTranslate-LSP-Starter.zip" ]; then
+            echo "ERROR: Project ZIP not found"
+            ls -la
+            exit 1
+          fi
+
       - name: Extract project
         run: |
+          mkdir -p source
           unzip -o TikTokAutoTranslate-LSP-Starter.zip -d source
-          test -f source/settings.gradle
+          echo "Checking extracted project..."
+          ls -la source
 
-      - name: Build APK
-        run: gradle -p source --no-daemon :app:assembleDebug
+      - name: Check Gradle files
+        run: |
+          if [ ! -f "source/settings.gradle" ] && \
+             [ ! -f "source/settings.gradle.kts" ]; then
+            echo "ERROR: settings.gradle not found"
+            find source -name "settings.gradle*" -type f
+            exit 1
+          fi
+
+          if [ ! -f "source/app/build.gradle" ] && \
+             [ ! -f "source/app/build.gradle.kts" ]; then
+            echo "ERROR: app/build.gradle not found"
+            find source -maxdepth 4 -type f
+            exit 1
+          fi
+
+      - name: Build debug APK
+        run: |
+          gradle -p source --no-daemon :app:assembleDebug
+
+      - name: Find generated APK
+        run: |
+          find source -type f -name "*.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -47,3 +83,4 @@ jobs:
           name: TikTokAutoTranslate-APK
           path: source/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 7
