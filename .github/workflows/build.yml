@@ -1,0 +1,58 @@
+name: Build TikTok Auto Translate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'TikTokAutoTranslate-LSP-Starter.zip'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Extract project
+        run: |
+          mkdir source
+          unzip -q TikTokAutoTranslate-LSP-Starter.zip -d source
+          find source -name settings.gradle -type f
+
+      - name: Build APK
+        run: |
+          PROJECT_DIR="$(dirname "$(find source -name settings.gradle -type f | head -n 1)")"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "找不到 settings.gradle，ZIP 目录结构不正确"
+            exit 1
+          fi
+          gradle -p "$PROJECT_DIR" :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TikTokAutoTranslate-APK
+          path: source/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
