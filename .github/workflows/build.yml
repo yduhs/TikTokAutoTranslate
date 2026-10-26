@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'TikTokAutoTranslate-LSP-Starter.zip'
+      - 'TikTok Auto Translate.zip'
       - '.github/workflows/build.yml'
 
 permissions:
@@ -24,96 +24,98 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android packages
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
+      - name: Configure Android SDK
         run: |
           set -e
 
-          echo "Checking Android SDK..."
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
 
-          if [ ! -d "$ANDROID_HOME" ]; then
-            echo "ERROR: Android SDK directory not found"
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+
+          echo "Android SDK path: $SDK"
+
+          if [ ! -d "$SDK" ]; then
+            echo "ERROR: Android SDK directory not found: $SDK"
             exit 1
           fi
 
-          echo "Searching for sdkmanager..."
+          echo "Installed SDK packages:"
+          ls "$SDK"
 
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1)"
+      - name: Install Android packages
+        run: |
+          set -e
+
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1)"
 
           if [ -z "$SDKMANAGER" ]; then
             echo "ERROR: sdkmanager not found"
-            find "$ANDROID_HOME" -maxdepth 4 -type f -name sdkmanager
             exit 1
           fi
 
-          echo "Using: $SDKMANAGER"
+          echo "Using sdkmanager: $SDKMANAGER"
 
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses || true
 
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "platform-tools"
-
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "platforms;android-35"
-
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "build-tools;35.0.0"
+          "$SDKMANAGER" --sdk_root="$SDK" --install "platform-tools"
+          "$SDKMANAGER" --sdk_root="$SDK" --install "platforms;android-35"
+          "$SDKMANAGER" --sdk_root="$SDK" --install "build-tools;35.0.0"
 
       - name: Install Gradle
         run: |
           set -e
 
           wget -q https://services.gradle.org/distributions/gradle-8.6-bin.zip -O /tmp/gradle.zip
-
           unzip -q /tmp/gradle.zip -d "$HOME"
 
           echo "$HOME/gradle-8.6/bin" >> "$GITHUB_PATH"
-
-          echo "Gradle installed"
 
       - name: Extract project
         run: |
           set -e
 
-          mkdir -p source
+          ZIP="TikTok Auto Translate.zip"
 
-          unzip -o TikTokAutoTranslate-LSP-Starter.zip -d source
-
-          echo "Searching for settings.gradle..."
-
-          PROJECT_DIR="$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs -r dirname)"
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: settings.gradle was not found"
-            echo "Please check the ZIP file structure."
-            find source -maxdepth 4 -type f
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: ZIP file not found: $ZIP"
+            echo "Files in repository:"
+            ls -la
             exit 1
           fi
 
+          mkdir -p source
+          unzip -o "$ZIP" -d source
+
+          echo "Extracted files:"
+          find source -maxdepth 4 -type f | head -n 100
+
+          SETTINGS="$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle or settings.gradle.kts not found"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$SETTINGS")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project directory: $PROJECT_DIR"
-
           if [ ! -f "$PROJECT_DIR/app/build.gradle" ] && [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
-            echo "ERROR: app/build.gradle was not found"
-            find "$PROJECT_DIR" -maxdepth 4 -type f
+            echo "ERROR: app/build.gradle or app/build.gradle.kts not found"
             exit 1
           fi
 
       - name: Build APK
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           set -e
-
           gradle -p "$PROJECT_DIR" --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TikTokAutoTranslate-APK
-          path: |
-            source/**/build/outputs/apk/debug/*.apk
+          path: source/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
