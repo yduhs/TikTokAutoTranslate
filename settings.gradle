@@ -1,6 +1,12 @@
+
 pluginManagement {
-    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -9,7 +15,11 @@ dependencyResolutionManagement {
         maven {
             url 'https://artifactory.appodeal.com/appodeal-public/'
         }
+        maven {
+            url 'https://api.xposed.info/'
+        }
     }
 }
-rootProject.name = "TikTokAutoTranslate"
-include(":app")
+
+rootProject.name = 'TikTokAutoTranslate'
+include ':app'
